@@ -1,8 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+// Добавлены импорты GoogleAuthProvider и signInWithPopup
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
-// Твои настройки Firebase
+// Твои ключи Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyD1j0Y86ayy5w4sDWScDoS-EKPWy8jS0i4",
   authDomain: "craft-coffee-app.firebaseapp.com",
@@ -55,7 +56,7 @@ class CartManager {
     }
 
     async syncCartWithDB() {
-        if (!this.userId) return; // Гости не сохраняют корзину в БД
+        if (!this.userId) return;
         try {
             await setDoc(doc(dbFirestore, 'carts', this.userId), { items: this.items });
         } catch (error) {
@@ -91,9 +92,9 @@ class UIManager {
         this.cart = cart;
         this.products = [];
         this.currentCategory = 'all';
-        this.isLoginMode = true; // true = Вход, false = Регистрация
+        this.isLoginMode = true; 
 
-        // Привязка элементов UI
+        // Элементы
         this.grid = document.getElementById('products-grid');
         this.cartBtn = document.getElementById('cart-btn');
         this.loginBtn = document.getElementById('login-btn');
@@ -114,6 +115,11 @@ class UIManager {
         this.authTitle = document.getElementById('auth-title');
         this.authSubmit = document.getElementById('auth-submit');
         this.authToggleText = document.getElementById('auth-toggle-text');
+        
+        // Новые элементы
+        this.togglePasswordBtn = document.getElementById('toggle-password');
+        this.passwordInput = document.getElementById('auth-password');
+        this.googleLoginBtn = document.getElementById('google-login-btn');
 
         this.init();
     }
@@ -123,22 +129,22 @@ class UIManager {
         this.products = await this.db.getProducts();
         this.renderProducts();
         
-        // Слушатель состояния авторизации Firebase
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // Пользователь вошел
                 this.loginBtn.style.display = 'none';
                 this.logoutBtn.style.display = 'block';
                 this.cart.setUserId(user.uid);
                 await this.cart.loadCartFromDB();
                 this.updateCartUI();
-                this.showToast(`Вы вошли как ${user.email}`);
+                
+                // Проверяем имя из Google или берем email
+                const displayName = user.displayName || user.email;
+                this.showToast(`Добро пожаловать, ${displayName}!`);
             } else {
-                // Пользователь вышел
                 this.loginBtn.style.display = 'block';
                 this.logoutBtn.style.display = 'none';
                 this.cart.setUserId(null);
-                this.cart.items = []; // Очищаем корзину локально
+                this.cart.items = [];
                 this.updateCartUI();
             }
         });
@@ -154,12 +160,10 @@ class UIManager {
             });
         });
 
-        // Корзина
         this.cartBtn.addEventListener('click', () => this.toggleCart(true));
         this.closeCartBtn.addEventListener('click', () => this.toggleCart(false));
         this.cartOverlay.addEventListener('click', () => this.toggleCart(false));
 
-        // Модальное окно авторизации
         this.loginBtn.addEventListener('click', () => this.toggleAuth(true));
         this.closeAuthBtn.addEventListener('click', () => this.toggleAuth(false));
         this.authOverlay.addEventListener('click', () => this.toggleAuth(false));
@@ -170,7 +174,27 @@ class UIManager {
             this.updateAuthModalUI();
         });
 
-        // Форма отправки (вход или регистрация)
+        // Логика глазка для пароля
+        this.togglePasswordBtn.addEventListener('click', () => {
+            const type = this.passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            this.passwordInput.setAttribute('type', type);
+            // Меняем иконку (закрытые / открытые глаза)
+            this.togglePasswordBtn.textContent = type === 'password' ? '👁️' : '🙈';
+        });
+
+        // Логика входа через Google
+        this.googleLoginBtn.addEventListener('click', async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+                this.toggleAuth(false);
+            } catch (error) {
+                console.error("Ошибка входа Google:", error);
+                this.showToast("Ошибка при входе через Google.");
+            }
+        });
+
+        // Стандартная форма (Email + Пароль)
         this.authForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('auth-email').value;
@@ -186,7 +210,7 @@ class UIManager {
                 this.authForm.reset();
             } catch (error) {
                 console.error("Ошибка авторизации:", error);
-                this.showToast(this.isLoginMode ? "Ошибка входа. Проверьте пароль." : "Ошибка регистрации.");
+                this.showToast(this.isLoginMode ? "Ошибка входа. Проверьте данные." : "Ошибка регистрации.");
             }
         });
 
@@ -220,6 +244,9 @@ class UIManager {
         } else {
             this.authModal.classList.remove('active');
             this.authOverlay.classList.remove('active');
+            // Сбрасываем пароль в скрытый режим при закрытии модалки
+            this.passwordInput.setAttribute('type', 'password');
+            this.togglePasswordBtn.textContent = '👁️';
         }
     }
 
