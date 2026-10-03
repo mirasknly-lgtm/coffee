@@ -146,3 +146,25 @@ body {
     .hero h1 { font-size: 2.5rem; }
     .nav-links { display: none; }
 }
+
+/* Авторизация */
+.auth-modal {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 90%; max-width: 400px; background: var(--light);
+    border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    z-index: 1000; opacity: 0; visibility: hidden; transition: var(--transition);
+    padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem;
+}
+.auth-modal.active { opacity: 1; visibility: visible; }
+.auth-header { display: flex; justify-content: space-between; align-items: center; }
+.auth-form { display: flex; flex-direction: column; gap: 1rem; }
+.auth-form input {
+    padding: 0.8rem 1rem; border: 1px solid #ddd; border-radius: 8px;
+    font-family: inherit; font-size: 1rem; outline: none; transition: var(--transition);
+}
+.auth-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(212, 163, 115, 0.2); }
+.auth-footer { text-align: center; font-size: 0.9rem; margin-top: 1rem; }
+.auth-footer button {
+    background: none; border: none; color: var(--accent); font-weight: 600;
+    cursor: pointer; margin-left: 0.5rem;
+}
