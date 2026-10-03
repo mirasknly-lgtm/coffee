@@ -1,7 +1,22 @@
-// Mock База данных
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getFirestore, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD1j0Y86ayy5w4sDWScDoS-EKPWy8jS0i4",
+  authDomain: "craft-coffee-app.firebaseapp.com",
+  projectId: "craft-coffee-app",
+  storageBucket: "craft-coffee-app.firebasestorage.app",
+  messagingSenderId: "886030226106",
+  appId: "1:886030226106:web:7d97868d486b694de76883",
+  measurementId: "G-YL2B4790ZC"
+};
+
+const app = initializeApp(firebaseConfig);
+const dbFirestore = getFirestore(app);
+
 class DatabaseService {
     constructor() {
-        this.mockProducts = [
+        this.fallbackProducts = [
             { id: "c1", name: "Карамельный Маккиато", price: 1800, category: "coffee", description: "Двойной эспрессо с ванильным сиропом, горячим молоком и карамельной сеточкой.", image: "https://images.unsplash.com/photo-1485808191679-5f86510681a2?auto=format&fit=crop&w=600&q=80" },
             { id: "c2", name: "Флэт Уайт", price: 1500, category: "coffee", description: "Насыщенный кофейный вкус с тонким слоем микропены.", image: "https://images.unsplash.com/photo-1577968897966-3d4325b36b61?auto=format&fit=crop&w=600&q=80" },
             { id: "c3", name: "Айс Латте", price: 1600, category: "coffee", description: "Охлаждающий классический латте со льдом.", image: "https://images.unsplash.com/photo-1517701550927-30cfcb64db10?auto=format&fit=crop&w=600&q=80" },
@@ -9,12 +24,46 @@ class DatabaseService {
             { id: "d2", name: "Тирамису", price: 2400, category: "dessert", description: "Воздушный итальянский десерт с маскарпоне и эспрессо.", image: "https://images.unsplash.com/photo-1571115177098-24de14c7c8c3?auto=format&fit=crop&w=600&q=80" }
         ];
     }
+
     async getProducts() {
-        return new Promise(resolve => setTimeout(() => resolve(this.mockProducts), 300));
+        try {
+            const productsCol = collection(dbFirestore, 'products');
+            const snapshot = await getDocs(productsCol);
+            
+            if (snapshot.empty) {
+                console.warn("В Firestore нет товаров. Загружаю локальные данные...");
+                return this.fallbackProducts;
+            }
+
+            const productsList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            
+            return productsList;
+        } catch (error) {
+            console.error("Ошибка при подключении к Firestore:", error);
+            return this.fallbackProducts;
+        }
+    }
+
+    // Функция для первоначальной загрузки данных в пустую БД
+    async seedDatabase() {
+        try {
+            const productsCol = collection(dbFirestore, 'products');
+            for (const item of this.fallbackProducts) {
+                // Создаем копию без id, чтобы Firebase сгенерировал свой уникальный ID
+                const { id, ...itemData } = item; 
+                await addDoc(productsCol, itemData);
+            }
+            console.log("Товары успешно загружены в облако Firebase!");
+            alert("Товары успешно загружены в базу данных! Обновите страницу.");
+        } catch (error) {
+            console.error("Ошибка при загрузке:", error);
+        }
     }
 }
 
-// Менеджер корзины
 class CartManager {
     constructor() { this.items = []; }
     add(product) {
@@ -34,7 +83,6 @@ class CartManager {
     getCount() { return this.items.reduce((sum, item) => sum + item.quantity, 0); }
 }
 
-// Управление UI
 class UIManager {
     constructor(db, cart) {
         this.db = db;
@@ -60,6 +108,9 @@ class UIManager {
         this.products = await this.db.getProducts();
         this.renderProducts();
         this.updateCartUI();
+        
+        // Делаем db доступным глобально, чтобы мы могли вызвать функцию seed из консоли
+        window.coffeeDB = this.db; 
     }
 
     bindEvents() {
@@ -170,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('checkout-btn').addEventListener('click', () => {
         if (cart.items.length > 0) {
-            ui.showToast('Заказ успешно оформлен! (Мок-режим)');
+            ui.showToast('Заказ оформлен! Мы скоро с вами свяжемся.');
             cart.items = [];
             ui.updateCartUI();
             ui.toggleCart(false);
