@@ -1,6 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
+// Твои настройки Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyD1j0Y86ayy5w4sDWScDoS-EKPWy8jS0i4",
   authDomain: "craft-coffee-app.firebaseapp.com",
@@ -13,70 +15,70 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const dbFirestore = getFirestore(app);
+const auth = getAuth(app);
 
 class DatabaseService {
-    constructor() {
-        this.fallbackProducts = [
-            { id: "c1", name: "Карамельный Маккиато", price: 1800, category: "coffee", description: "Двойной эспрессо с ванильным сиропом, горячим молоком и карамельной сеточкой.", image: "https://images.unsplash.com/photo-1485808191679-5f86510681a2?auto=format&fit=crop&w=600&q=80" },
-            { id: "c2", name: "Флэт Уайт", price: 1500, category: "coffee", description: "Насыщенный кофейный вкус с тонким слоем микропены.", image: "https://images.unsplash.com/photo-1577968897966-3d4325b36b61?auto=format&fit=crop&w=600&q=80" },
-            { id: "c3", name: "Айс Латте", price: 1600, category: "coffee", description: "Охлаждающий классический латте со льдом.", image: "https://images.unsplash.com/photo-1517701550927-30cfcb64db10?auto=format&fit=crop&w=600&q=80" },
-            { id: "d1", name: "Чизкейк Нью-Йорк", price: 2200, category: "dessert", description: "Классический сливочный чизкейк на песочной основе.", image: "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=600&q=80" },
-            { id: "d2", name: "Тирамису", price: 2400, category: "dessert", description: "Воздушный итальянский десерт с маскарпоне и эспрессо.", image: "https://images.unsplash.com/photo-1571115177098-24de14c7c8c3?auto=format&fit=crop&w=600&q=80" }
-        ];
-    }
-
     async getProducts() {
         try {
             const productsCol = collection(dbFirestore, 'products');
             const snapshot = await getDocs(productsCol);
-            
-            if (snapshot.empty) {
-                console.warn("В Firestore нет товаров. Загружаю локальные данные...");
-                return this.fallbackProducts;
-            }
-
-            const productsList = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            
-            return productsList;
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (error) {
-            console.error("Ошибка при подключении к Firestore:", error);
-            return this.fallbackProducts;
-        }
-    }
-
-    // Функция для первоначальной загрузки данных в пустую БД
-    async seedDatabase() {
-        try {
-            const productsCol = collection(dbFirestore, 'products');
-            for (const item of this.fallbackProducts) {
-                // Создаем копию без id, чтобы Firebase сгенерировал свой уникальный ID
-                const { id, ...itemData } = item; 
-                await addDoc(productsCol, itemData);
-            }
-            console.log("Товары успешно загружены в облако Firebase!");
-            alert("Товары успешно загружены в базу данных! Обновите страницу.");
-        } catch (error) {
-            console.error("Ошибка при загрузке:", error);
+            console.error("Ошибка загрузки:", error);
+            return [];
         }
     }
 }
 
 class CartManager {
-    constructor() { this.items = []; }
+    constructor() { 
+        this.items = []; 
+        this.userId = null;
+    }
+    
+    setUserId(uid) {
+        this.userId = uid;
+    }
+
+    async loadCartFromDB() {
+        if (!this.userId) return;
+        try {
+            const cartDoc = await getDoc(doc(dbFirestore, 'carts', this.userId));
+            if (cartDoc.exists()) {
+                this.items = cartDoc.data().items || [];
+            } else {
+                this.items = [];
+            }
+        } catch (error) {
+            console.error("Ошибка загрузки корзины:", error);
+        }
+    }
+
+    async syncCartWithDB() {
+        if (!this.userId) return; // Гости не сохраняют корзину в БД
+        try {
+            await setDoc(doc(dbFirestore, 'carts', this.userId), { items: this.items });
+        } catch (error) {
+            console.error("Ошибка синхронизации корзины:", error);
+        }
+    }
+
     add(product) {
         const existing = this.items.find(item => item.product.id === product.id);
         if (existing) existing.quantity++;
         else this.items.push({ product, quantity: 1 });
+        this.syncCartWithDB();
     }
-    remove(productId) { this.items = this.items.filter(item => item.product.id !== productId); }
+    remove(productId) { 
+        this.items = this.items.filter(item => item.product.id !== productId); 
+        this.syncCartWithDB();
+    }
     changeQuantity(productId, delta) {
         const item = this.items.find(i => i.product.id === productId);
         if (item) {
             item.quantity += delta;
             if (item.quantity <= 0) this.remove(productId);
+            else this.syncCartWithDB();
         }
     }
     getTotal() { return this.items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0); }
@@ -89,16 +91,29 @@ class UIManager {
         this.cart = cart;
         this.products = [];
         this.currentCategory = 'all';
+        this.isLoginMode = true; // true = Вход, false = Регистрация
 
+        // Привязка элементов UI
         this.grid = document.getElementById('products-grid');
         this.cartBtn = document.getElementById('cart-btn');
+        this.loginBtn = document.getElementById('login-btn');
+        this.logoutBtn = document.getElementById('logout-btn');
+        
         this.cartSidebar = document.getElementById('cart-sidebar');
         this.cartOverlay = document.getElementById('cart-overlay');
         this.closeCartBtn = document.getElementById('close-cart');
         this.cartItemsList = document.getElementById('cart-items');
         this.cartCount = document.getElementById('cart-count');
         this.totalPrice = document.getElementById('total-price');
-        this.filterBtns = document.querySelectorAll('.filter-btn');
+        
+        this.authOverlay = document.getElementById('auth-overlay');
+        this.authModal = document.getElementById('auth-modal');
+        this.authForm = document.getElementById('auth-form');
+        this.closeAuthBtn = document.getElementById('close-auth');
+        this.authToggleBtn = document.getElementById('auth-toggle-btn');
+        this.authTitle = document.getElementById('auth-title');
+        this.authSubmit = document.getElementById('auth-submit');
+        this.authToggleText = document.getElementById('auth-toggle-text');
 
         this.init();
     }
@@ -107,25 +122,85 @@ class UIManager {
         this.bindEvents();
         this.products = await this.db.getProducts();
         this.renderProducts();
-        this.updateCartUI();
         
-        // Делаем db доступным глобально, чтобы мы могли вызвать функцию seed из консоли
-        window.coffeeDB = this.db; 
+        // Слушатель состояния авторизации Firebase
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // Пользователь вошел
+                this.loginBtn.style.display = 'none';
+                this.logoutBtn.style.display = 'block';
+                this.cart.setUserId(user.uid);
+                await this.cart.loadCartFromDB();
+                this.updateCartUI();
+                this.showToast(`Вы вошли как ${user.email}`);
+            } else {
+                // Пользователь вышел
+                this.loginBtn.style.display = 'block';
+                this.logoutBtn.style.display = 'none';
+                this.cart.setUserId(null);
+                this.cart.items = []; // Очищаем корзину локально
+                this.updateCartUI();
+            }
+        });
     }
 
     bindEvents() {
-        this.cartBtn.addEventListener('click', () => this.toggleCart(true));
-        this.closeCartBtn.addEventListener('click', () => this.toggleCart(false));
-        this.cartOverlay.addEventListener('click', () => this.toggleCart(false));
-
-        this.filterBtns.forEach(btn => {
+        document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                this.filterBtns.forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
                 e.target.classList.add('active');
                 this.currentCategory = e.target.dataset.category;
                 this.renderProducts();
             });
         });
+
+        // Корзина
+        this.cartBtn.addEventListener('click', () => this.toggleCart(true));
+        this.closeCartBtn.addEventListener('click', () => this.toggleCart(false));
+        this.cartOverlay.addEventListener('click', () => this.toggleCart(false));
+
+        // Модальное окно авторизации
+        this.loginBtn.addEventListener('click', () => this.toggleAuth(true));
+        this.closeAuthBtn.addEventListener('click', () => this.toggleAuth(false));
+        this.authOverlay.addEventListener('click', () => this.toggleAuth(false));
+        
+        this.authToggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.isLoginMode = !this.isLoginMode;
+            this.updateAuthModalUI();
+        });
+
+        // Форма отправки (вход или регистрация)
+        this.authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+
+            try {
+                if (this.isLoginMode) {
+                    await signInWithEmailAndPassword(auth, email, password);
+                } else {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                }
+                this.toggleAuth(false);
+                this.authForm.reset();
+            } catch (error) {
+                console.error("Ошибка авторизации:", error);
+                this.showToast(this.isLoginMode ? "Ошибка входа. Проверьте пароль." : "Ошибка регистрации.");
+            }
+        });
+
+        this.logoutBtn.addEventListener('click', () => {
+            signOut(auth);
+            this.showToast("Вы вышли из аккаунта");
+        });
+    }
+
+    updateAuthModalUI() {
+        this.authTitle.textContent = this.isLoginMode ? "Вход" : "Регистрация";
+        this.authSubmit.textContent = this.isLoginMode ? "Войти" : "Зарегистрироваться";
+        this.authToggleText.textContent = this.isLoginMode ? "Нет аккаунта?" : "Уже есть аккаунт?";
+        this.authToggleBtn.textContent = this.isLoginMode ? "Зарегистрироваться" : "Войти";
     }
 
     toggleCart(show) {
@@ -135,6 +210,16 @@ class UIManager {
         } else {
             this.cartSidebar.classList.remove('active');
             this.cartOverlay.classList.remove('active');
+        }
+    }
+
+    toggleAuth(show) {
+        if (show) {
+            this.authModal.classList.add('active');
+            this.authOverlay.classList.add('active');
+        } else {
+            this.authModal.classList.remove('active');
+            this.authOverlay.classList.remove('active');
         }
     }
 
@@ -161,6 +246,11 @@ class UIManager {
             `;
             
             card.querySelector('.add-to-cart').addEventListener('click', () => {
+                if (!auth.currentUser) {
+                    this.showToast("Пожалуйста, войдите в аккаунт");
+                    this.toggleAuth(true);
+                    return;
+                }
                 this.cart.add(product);
                 this.updateCartUI();
                 this.showToast(`${product.name} добавлен в корзину`);
@@ -223,6 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cart.items.length > 0) {
             ui.showToast('Заказ оформлен! Мы скоро с вами свяжемся.');
             cart.items = [];
+            cart.syncCartWithDB();
             ui.updateCartUI();
             ui.toggleCart(false);
         } else {
