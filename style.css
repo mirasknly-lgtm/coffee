@@ -168,3 +168,62 @@ body {
     background: none; border: none; color: var(--accent); font-weight: 600;
     cursor: pointer; margin-left: 0.5rem;
 }
+
+/* Новые элементы: глазок и кнопка Google */
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.password-wrapper input {
+    width: 100%;
+    padding-right: 2.5rem; /* Место для глазка */
+}
+.toggle-password-btn {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+
+.auth-divider {
+    text-align: center;
+    position: relative;
+    margin: 0.5rem 0;
+}
+.auth-divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    border-top: 1px solid #ddd;
+    z-index: 1;
+}
+.auth-divider span {
+    background: var(--light);
+    padding: 0 10px;
+    position: relative;
+    z-index: 2;
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.btn-google {
+    background: #fff;
+    color: #333;
+    border: 1px solid #ddd;
+    padding: 0.8rem 1.5rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+.btn-google:hover { background: #f8f9fa; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
