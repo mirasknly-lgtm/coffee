@@ -331,20 +331,31 @@ class UIManager {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const db = new DatabaseService();
-    const cart = new CartManager();
-    const ui = new UIManager(db, cart);
-    
-    document.getElementById('checkout-btn').addEventListener('click', () => {
+document.getElementById('checkout-btn').addEventListener('click', async () => {
         if (cart.items.length > 0) {
-            ui.showToast('Заказ оформлен! Мы скоро с вами свяжемся.');
-            cart.items = [];
-            cart.syncCartWithDB();
-            ui.updateCartUI();
-            ui.toggleCart(false);
+            try {
+                // Создаем новый заказ в базе данных
+                const newOrder = {
+                    userEmail: auth.currentUser ? auth.currentUser.email : 'Гость',
+                    userId: auth.currentUser ? auth.currentUser.uid : 'guest',
+                    items: cart.items,
+                    total: cart.getTotal(),
+                    createdAt: new Date(),
+                    status: 'new'
+                };
+                
+                await setDoc(doc(collection(dbFirestore, 'orders')), newOrder);
+
+                ui.showToast('Заказ успешно оформлен!');
+                cart.items = [];
+                cart.syncCartWithDB();
+                ui.updateCartUI();
+                ui.toggleCart(false);
+            } catch (error) {
+                console.error("Ошибка при оформлении заказа:", error);
+                ui.showToast('Произошла ошибка. Попробуйте еще раз.');
+            }
         } else {
             ui.showToast('Добавьте товары в корзину');
         }
-    });
-});
+    }););
