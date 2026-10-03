@@ -14,9 +14,13 @@
             <a href="#home">Главная</a>
             <a href="#menu">Меню</a>
         </nav>
-        <button id="cart-btn" class="cart-btn">
-            Корзина <span id="cart-count" class="badge">0</span>
-        </button>
+        <div class="nav-actions" style="display: flex; align-items: center; gap: 1rem;">
+            <button id="cart-btn" class="cart-btn">
+                Корзина <span id="cart-count" class="badge">0</span>
+            </button>
+            <button id="login-btn" class="btn-primary">Войти</button>
+            <button id="logout-btn" class="btn-primary" style="display: none; background: #666;">Выйти</button>
+        </div>
     </header>
 
     <main>
@@ -60,9 +64,27 @@
         </div>
     </div>
 
+    <!-- Модальное окно авторизации -->
+    <div id="auth-overlay" class="cart-overlay"></div>
+    <div id="auth-modal" class="auth-modal">
+        <div class="auth-header">
+            <h3 id="auth-title">Вход</h3>
+            <button id="close-auth" class="close-btn">&times;</button>
+        </div>
+        <form id="auth-form" class="auth-form">
+            <input type="email" id="auth-email" placeholder="Email" required>
+            <input type="password" id="auth-password" placeholder="Пароль" required minlength="6">
+            <button type="submit" class="btn-primary w-100" id="auth-submit">Войти</button>
+        </form>
+        <div class="auth-footer">
+            <span id="auth-toggle-text">Нет аккаунта?</span>
+            <button id="auth-toggle-btn">Зарегистрироваться</button>
+        </div>
+    </div>
+
     <!-- Уведомления -->
     <div id="toast-container" class="toast-container"></div>
 
-   <script type="module" src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>
