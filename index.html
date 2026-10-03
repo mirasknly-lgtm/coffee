@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Craft Coffee | Кофейня</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo">Craft<span>Coffee</span></div>
+        <nav class="nav-links">
+            <a href="#home">Главная</a>
+            <a href="#menu">Меню</a>
+        </nav>
+        <button id="cart-btn" class="cart-btn">
+            Корзина <span id="cart-count" class="badge">0</span>
+        </button>
+    </header>
+
+    <main>
+        <section id="home" class="hero">
+            <div class="hero-content">
+                <h1>Настоящий кофе ручной работы</h1>
+                <p>Отборные зерна, уникальная обжарка и любовь в каждой чашке.</p>
+                <a href="#menu" class="btn-primary">Смотреть меню</a>
+            </div>
+        </section>
+
+        <section id="menu" class="menu-section">
+            <h2>Наше меню</h2>
+            <div class="filters">
+                <button class="filter-btn active" data-category="all">Всё</button>
+                <button class="filter-btn" data-category="coffee">Кофе</button>
+                <button class="filter-btn" data-category="dessert">Десерты</button>
+            </div>
+            <div id="products-grid" class="products-grid">
+                <!-- Карточки товаров -->
+            </div>
+        </section>
+    </main>
+
+    <!-- Шторка корзины -->
+    <div id="cart-overlay" class="cart-overlay"></div>
+    <div id="cart-sidebar" class="cart-sidebar">
+        <div class="cart-header">
+            <h3>Ваш заказ</h3>
+            <button id="close-cart" class="close-btn">&times;</button>
+        </div>
+        <div id="cart-items" class="cart-items">
+            <!-- Элементы корзины -->
+        </div>
+        <div class="cart-footer">
+            <div class="cart-total">
+                <span>Итого:</span>
+                <span id="total-price">0 ₸</span>
+            </div>
+            <button class="btn-primary w-100" id="checkout-btn">Оформить заказ</button>
+        </div>
+    </div>
+
+    <!-- Уведомления -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
