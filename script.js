@@ -1,361 +1,156 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-// Добавлены импорты GoogleAuthProvider и signInWithPopup
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
-// Твои ключи Firebase
-const firebaseConfig = {
-  apiKey: "AIzaSyD1j0Y86ayy5w4sDWScDoS-EKPWy8jS0i4",
-  authDomain: "craft-coffee-app.firebaseapp.com",
-  projectId: "craft-coffee-app",
-  storageBucket: "craft-coffee-app.firebasestorage.app",
-  messagingSenderId: "886030226106",
-  appId: "1:886030226106:web:7d97868d486b694de76883",
-  measurementId: "G-YL2B4790ZC"
-};
-
-const app = initializeApp(firebaseConfig);
-const dbFirestore = getFirestore(app);
-const auth = getAuth(app);
-
-class DatabaseService {
-    async getProducts() {
-        try {
-            const productsCol = collection(dbFirestore, 'products');
-            const snapshot = await getDocs(productsCol);
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        } catch (error) {
-            console.error("Ошибка загрузки:", error);
-            return [];
-        }
-    }
+// Безопасная инициализация базы данных
+let db;
+try {
+    const firebaseConfig = {
+        apiKey: "AIzaSyCkg-3Boc0rkRHEc1ZHcdGc3ih4pE0Zyos",
+        authDomain: "coffeeportfolio-160a7.firebaseapp.com",
+        projectId: "coffeeportfolio-160a7",
+        storageBucket: "coffeeportfolio-160a7.firebasestorage.app",
+        messagingSenderId: "463097421957",
+        appId: "1:463097421957:web:9db7ccc6eab7ace8d8c9ec"
+    };
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+} catch (error) {
+    console.error("Ошибка подключения к Firebase:", error);
 }
 
-class CartManager {
-    constructor() { 
-        this.items = []; 
-        this.userId = null;
+let products = [];
+let cart = [];
+
+// Элементы интерфейса
+const catalogContainer = document.getElementById('catalog');
+const cartItemsContainer = document.getElementById('cart-items');
+const cartCountElement = document.getElementById('cart-count');
+const cartTotalPrice = document.getElementById('cart-total-price');
+const cartOpenBtn = document.getElementById('cart-open');
+const cartCloseBtn = document.getElementById('cart-close');
+const cartOverlay = document.getElementById('cart-overlay');
+
+// Логика шторки корзины (теперь работает независимо от базы данных)
+function toggleCart() {
+    document.body.classList.toggle('cart-active');
+}
+cartOpenBtn.addEventListener('click', toggleCart);
+cartCloseBtn.addEventListener('click', toggleCart);
+cartOverlay.addEventListener('click', toggleCart);
+
+// Глобальный перехватчик кликов (решает проблему с блокировкой кнопок)
+document.addEventListener('click', (event) => {
+    // Если кликнули на кнопку "В корзину"
+    if (event.target.classList.contains('btn-add')) {
+        const productId = event.target.getAttribute('data-id');
+        addToCart(productId);
     }
+    // Если кликнули на удаление из корзины
+    if (event.target.classList.contains('cart-item-remove')) {
+        const index = event.target.getAttribute('data-index');
+        removeFromCart(index);
+    }
+    // Если кликнули "Оформить заказ"
+    if (event.target.classList.contains('checkout-btn')) {
+        alert('Переход к оплате!');
+    }
+});
+
+// Загрузка товаров
+async function loadProducts() {
+    if (!db) {
+        catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">База данных не подключена.</p>';
+        return;
+    }
+
+    catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Загрузка меню из базы данных...</p>';
     
-    setUserId(uid) {
-        this.userId = uid;
-    }
+    try {
+        const querySnapshot = await getDocs(collection(db, "products"));
+        products = [];
+        
+        querySnapshot.forEach((doc) => {
+            products.push({ id: doc.id, ...doc.data() });
+        });
 
-    async loadCartFromDB() {
-        if (!this.userId) return;
-        try {
-            const cartDoc = await getDoc(doc(dbFirestore, 'carts', this.userId));
-            if (cartDoc.exists()) {
-                this.items = cartDoc.data().items || [];
-            } else {
-                this.items = [];
-            }
-        } catch (error) {
-            console.error("Ошибка загрузки корзины:", error);
+        if (products.length === 0) {
+            catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Каталог пуст. Добавьте товары в Firebase Firestore.</p>';
+            return;
         }
-    }
 
-    async syncCartWithDB() {
-        if (!this.userId) return;
-        try {
-            await setDoc(doc(dbFirestore, 'carts', this.userId), { items: this.items });
-        } catch (error) {
-            console.error("Ошибка синхронизации корзины:", error);
-        }
+        renderCatalog();
+    } catch (error) {
+        console.error("Ошибка загрузки:", error);
+        catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: red;">Ошибка доступа к базе данных. Проверьте правила (Rules) в Firestore.</p>';
     }
-
-    add(product) {
-        const existing = this.items.find(item => item.product.id === product.id);
-        if (existing) existing.quantity++;
-        else this.items.push({ product, quantity: 1 });
-        this.syncCartWithDB();
-    }
-    remove(productId) { 
-        this.items = this.items.filter(item => item.product.id !== productId); 
-        this.syncCartWithDB();
-    }
-    changeQuantity(productId, delta) {
-        const item = this.items.find(i => i.product.id === productId);
-        if (item) {
-            item.quantity += delta;
-            if (item.quantity <= 0) this.remove(productId);
-            else this.syncCartWithDB();
-        }
-    }
-    getTotal() { return this.items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0); }
-    getCount() { return this.items.reduce((sum, item) => sum + item.quantity, 0); }
 }
 
-class UIManager {
-    constructor(db, cart) {
-        this.db = db;
-        this.cart = cart;
-        this.products = [];
-        this.currentCategory = 'all';
-        this.isLoginMode = true; 
-
-        // Элементы
-        this.grid = document.getElementById('products-grid');
-        this.cartBtn = document.getElementById('cart-btn');
-        this.loginBtn = document.getElementById('login-btn');
-        this.logoutBtn = document.getElementById('logout-btn');
-        
-        this.cartSidebar = document.getElementById('cart-sidebar');
-        this.cartOverlay = document.getElementById('cart-overlay');
-        this.closeCartBtn = document.getElementById('close-cart');
-        this.cartItemsList = document.getElementById('cart-items');
-        this.cartCount = document.getElementById('cart-count');
-        this.totalPrice = document.getElementById('total-price');
-        
-        this.authOverlay = document.getElementById('auth-overlay');
-        this.authModal = document.getElementById('auth-modal');
-        this.authForm = document.getElementById('auth-form');
-        this.closeAuthBtn = document.getElementById('close-auth');
-        this.authToggleBtn = document.getElementById('auth-toggle-btn');
-        this.authTitle = document.getElementById('auth-title');
-        this.authSubmit = document.getElementById('auth-submit');
-        this.authToggleText = document.getElementById('auth-toggle-text');
-        
-        // Новые элементы
-        this.togglePasswordBtn = document.getElementById('toggle-password');
-        this.passwordInput = document.getElementById('auth-password');
-        this.googleLoginBtn = document.getElementById('google-login-btn');
-
-        this.init();
-    }
-
-    async init() {
-        this.bindEvents();
-        this.products = await this.db.getProducts();
-        this.renderProducts();
-        
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                this.loginBtn.style.display = 'none';
-                this.logoutBtn.style.display = 'block';
-                this.cart.setUserId(user.uid);
-                await this.cart.loadCartFromDB();
-                this.updateCartUI();
-                
-                // Проверяем имя из Google или берем email
-                const displayName = user.displayName || user.email;
-                this.showToast(`Добро пожаловать, ${displayName}!`);
-            } else {
-                this.loginBtn.style.display = 'block';
-                this.logoutBtn.style.display = 'none';
-                this.cart.setUserId(null);
-                this.cart.items = [];
-                this.updateCartUI();
-            }
-        });
-    }
-
-    bindEvents() {
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                this.currentCategory = e.target.dataset.category;
-                this.renderProducts();
-            });
-        });
-
-        this.cartBtn.addEventListener('click', () => this.toggleCart(true));
-        this.closeCartBtn.addEventListener('click', () => this.toggleCart(false));
-        this.cartOverlay.addEventListener('click', () => this.toggleCart(false));
-
-        this.loginBtn.addEventListener('click', () => this.toggleAuth(true));
-        this.closeAuthBtn.addEventListener('click', () => this.toggleAuth(false));
-        this.authOverlay.addEventListener('click', () => this.toggleAuth(false));
-        
-        this.authToggleBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.isLoginMode = !this.isLoginMode;
-            this.updateAuthModalUI();
-        });
-
-        // Логика глазка для пароля
-        this.togglePasswordBtn.addEventListener('click', () => {
-            const type = this.passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-            this.passwordInput.setAttribute('type', type);
-            // Меняем иконку (закрытые / открытые глаза)
-            this.togglePasswordBtn.textContent = type === 'password' ? '👁️' : '🙈';
-        });
-
-        // Логика входа через Google
-        this.googleLoginBtn.addEventListener('click', async () => {
-            const provider = new GoogleAuthProvider();
-            try {
-                await signInWithPopup(auth, provider);
-                this.toggleAuth(false);
-            } catch (error) {
-                console.error("Ошибка входа Google:", error);
-                this.showToast("Ошибка при входе через Google.");
-            }
-        });
-
-        // Стандартная форма (Email + Пароль)
-        this.authForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('auth-email').value;
-            const password = document.getElementById('auth-password').value;
-
-            try {
-                if (this.isLoginMode) {
-                    await signInWithEmailAndPassword(auth, email, password);
-                } else {
-                    await createUserWithEmailAndPassword(auth, email, password);
-                }
-                this.toggleAuth(false);
-                this.authForm.reset();
-            } catch (error) {
-                console.error("Ошибка авторизации:", error);
-                this.showToast(this.isLoginMode ? "Ошибка входа. Проверьте данные." : "Ошибка регистрации.");
-            }
-        });
-
-        this.logoutBtn.addEventListener('click', () => {
-            signOut(auth);
-            this.showToast("Вы вышли из аккаунта");
-        });
-    }
-
-    updateAuthModalUI() {
-        this.authTitle.textContent = this.isLoginMode ? "Вход" : "Регистрация";
-        this.authSubmit.textContent = this.isLoginMode ? "Войти" : "Зарегистрироваться";
-        this.authToggleText.textContent = this.isLoginMode ? "Нет аккаунта?" : "Уже есть аккаунт?";
-        this.authToggleBtn.textContent = this.isLoginMode ? "Зарегистрироваться" : "Войти";
-    }
-
-    toggleCart(show) {
-        if (show) {
-            this.cartSidebar.classList.add('active');
-            this.cartOverlay.classList.add('active');
-        } else {
-            this.cartSidebar.classList.remove('active');
-            this.cartOverlay.classList.remove('active');
-        }
-    }
-
-    toggleAuth(show) {
-        if (show) {
-            this.authModal.classList.add('active');
-            this.authOverlay.classList.add('active');
-        } else {
-            this.authModal.classList.remove('active');
-            this.authOverlay.classList.remove('active');
-            // Сбрасываем пароль в скрытый режим при закрытии модалки
-            this.passwordInput.setAttribute('type', 'password');
-            this.togglePasswordBtn.textContent = '👁️';
-        }
-    }
-
-    formatPrice(price) { return price.toLocaleString('ru-RU') + ' ₸'; }
-
-    renderProducts() {
-        this.grid.innerHTML = '';
-        const filtered = this.currentCategory === 'all' 
-            ? this.products : this.products.filter(p => p.category === this.currentCategory);
-
-        filtered.forEach(product => {
-            const card = document.createElement('div');
-            card.className = 'product-card';
-            card.innerHTML = `
-                <img src="${product.image}" alt="${product.name}" class="product-img">
-                <div class="product-info">
-                    <h3 class="product-title">${product.name}</h3>
-                    <p class="product-desc">${product.description}</p>
-                    <div class="product-footer">
-                        <span class="product-price">${this.formatPrice(product.price)}</span>
-                        <button class="add-to-cart" data-id="${product.id}">+</button>
-                    </div>
+// Отрисовка товаров
+function renderCatalog() {
+    catalogContainer.innerHTML = '';
+    products.forEach(product => {
+        const card = document.createElement('div');
+        card.className = 'product-card';
+        card.innerHTML = `
+            <div class="product-img-wrap">
+                <img src="${product.img || ''}" alt="${product.name}" class="product-img">
+            </div>
+            <div class="product-info">
+                <h3 class="product-title">${product.name}</h3>
+                <p class="product-desc">${product.desc}</p>
+                <div class="product-bottom">
+                    <span class="product-price">${new Intl.NumberFormat('ru-RU').format(product.price)} ₸</span>
+                    <button class="btn-add" data-id="${product.id}">В корзину</button>
                 </div>
-            `;
-            
-            card.querySelector('.add-to-cart').addEventListener('click', () => {
-                if (!auth.currentUser) {
-                    this.showToast("Пожалуйста, войдите в аккаунт");
-                    this.toggleAuth(true);
-                    return;
-                }
-                this.cart.add(product);
-                this.updateCartUI();
-                this.showToast(`${product.name} добавлен в корзину`);
-            });
-            this.grid.appendChild(card);
-        });
-    }
-
-    updateCartUI() {
-        this.cartCount.textContent = this.cart.getCount();
-        this.cartItemsList.innerHTML = '';
-        
-        if (this.cart.items.length === 0) {
-            this.cartItemsList.innerHTML = '<p style="text-align:center; color:#888; margin-top:2rem;">Корзина пуста</p>';
-        } else {
-            this.cart.items.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'cart-item';
-                div.innerHTML = `
-                    <img src="${item.product.image}" class="cart-item-img" alt="${item.product.name}">
-                    <div class="cart-item-info">
-                        <div class="cart-item-title">${item.product.name}</div>
-                        <div class="cart-item-price">${this.formatPrice(item.product.price)}</div>
-                    </div>
-                    <div class="cart-actions">
-                        <button class="qty-btn minus" data-id="${item.product.id}">-</button>
-                        <span>${item.quantity}</span>
-                        <button class="qty-btn plus" data-id="${item.product.id}">+</button>
-                    </div>
-                `;
-                this.cartItemsList.appendChild(div);
-            });
-
-            this.cartItemsList.querySelectorAll('.minus').forEach(btn => 
-                btn.addEventListener('click', (e) => { this.cart.changeQuantity(e.target.dataset.id, -1); this.updateCartUI(); })
-            );
-            this.cartItemsList.querySelectorAll('.plus').forEach(btn => 
-                btn.addEventListener('click', (e) => { this.cart.changeQuantity(e.target.dataset.id, 1); this.updateCartUI(); })
-            );
-        }
-        this.totalPrice.textContent = this.formatPrice(this.cart.getTotal());
-    }
-
-    showToast(message) {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        toast.textContent = message;
-        container.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-    }
+            </div>
+        `;
+        catalogContainer.appendChild(card);
+    });
 }
 
-document.getElementById('checkout-btn').addEventListener('click', async () => {
-        if (cart.items.length > 0) {
-            try {
-                // Создаем новый заказ в базе данных
-                const newOrder = {
-                    userEmail: auth.currentUser ? auth.currentUser.email : 'Гость',
-                    userId: auth.currentUser ? auth.currentUser.uid : 'guest',
-                    items: cart.items,
-                    total: cart.getTotal(),
-                    createdAt: new Date(),
-                    status: 'new'
-                };
-                
-                await setDoc(doc(collection(dbFirestore, 'orders')), newOrder);
+function addToCart(productId) {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    cart.push(product);
+    
+    cartOpenBtn.style.transform = 'scale(1.1)';
+    setTimeout(() => cartOpenBtn.style.transform = 'scale(1)', 200);
 
-                ui.showToast('Заказ успешно оформлен!');
-                cart.items = [];
-                cart.syncCartWithDB();
-                ui.updateCartUI();
-                ui.toggleCart(false);
-            } catch (error) {
-                console.error("Ошибка при оформлении заказа:", error);
-                ui.showToast('Произошла ошибка. Попробуйте еще раз.');
-            }
-        } else {
-            ui.showToast('Добавьте товары в корзину');
-        }
-    }););
+    updateCartUI();
+}
+
+function removeFromCart(index) {
+    cart.splice(index, 1);
+    updateCartUI();
+}
+
+function updateCartUI() {
+    cartCountElement.textContent = cart.length;
+    cartItemsContainer.innerHTML = '';
+    
+    if (cart.length === 0) {
+        cartItemsContainer.innerHTML = '<p class="empty-cart">Ваша корзина пуста</p>';
+        cartTotalPrice.textContent = '0 ₸';
+        return;
+    }
+
+    let total = 0;
+    cart.forEach((item, index) => {
+        total += Number(item.price);
+        const cartItem = document.createElement('div');
+        cartItem.className = 'cart-item';
+        cartItem.innerHTML = `
+            <div class="cart-item-info">
+                <h4>${item.name}</h4>
+                <p>${new Intl.NumberFormat('ru-RU').format(item.price)} ₸</p>
+            </div>
+            <button class="cart-item-remove" data-index="${index}">✕</button>
+        `;
+        cartItemsContainer.appendChild(cartItem);
+    });
+
+    cartTotalPrice.textContent = new Intl.NumberFormat('ru-RU').format(total) + ' ₸';
+}
+
+loadProducts();
