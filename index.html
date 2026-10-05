@@ -10,16 +10,32 @@
 <body>
     <nav class="navbar">
         <div class="logo">Blend & Brew.</div>
-        <div class="cart-btn" id="cart-open">
-            🛒 Корзина (<span id="cart-count">0</span>)
+        <div class="nav-actions">
+            <button class="auth-btn" id="auth-open">Вход</button>
+            <div class="cart-btn" id="cart-open">
+                🛒 Корзина (<span id="cart-count">0</span>)
+            </div>
         </div>
     </nav>
 
-    <div class="cart-overlay" id="cart-overlay"></div>
+    <!-- Модальное окно авторизации -->
+    <div class="overlay" id="auth-overlay"></div>
+    <div class="auth-modal" id="auth-modal">
+        <button class="close-btn" id="auth-close">×</button>
+        <h2 style="margin-bottom: 1.5rem; color: var(--primary);">Авторизация</h2>
+        <form id="auth-form" class="auth-form">
+            <input type="email" placeholder="Ваш Email" required class="auth-input">
+            <input type="password" placeholder="Пароль" required class="auth-input">
+            <button type="submit" class="btn-primary auth-submit">Войти в аккаунт</button>
+        </form>
+    </div>
+
+    <!-- Боковая панель корзины -->
+    <div class="overlay" id="cart-overlay"></div>
     <div class="cart-sidebar" id="cart-sidebar">
         <div class="cart-header">
             <h2>Ваш заказ</h2>
-            <button class="close-cart" id="cart-close">×</button>
+            <button class="close-btn" id="cart-close">×</button>
         </div>
         <div class="cart-items" id="cart-items">
             <p class="empty-cart">Ваша корзина пуста</p>
@@ -35,6 +51,17 @@
 
     <header class="hero">
         <div class="hero-content">
+            <h1>Идеальный кофе и десерты</h1>
+            <p>Свежая обжарка и выпечка с доставкой до вашей двери</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <h2 class="section-title">Наше меню</h2>
+        <div class="catalog-grid" id="catalog"></div>
+    </main>
+</body>
+</html>        <div class="hero-content">
             <h1>Идеальный кофе и десерты</h1>
             <p>Свежая обжарка и выпечка с доставкой до вашей двери</p>
         </div>
