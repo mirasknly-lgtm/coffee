@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
 import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
-// Безопасная инициализация базы данных
+// Инициализация базы данных
 let db;
 try {
     const firebaseConfig = {
@@ -21,67 +21,76 @@ try {
 let products = [];
 let cart = [];
 
-// Элементы интерфейса
 const catalogContainer = document.getElementById('catalog');
 const cartItemsContainer = document.getElementById('cart-items');
 const cartCountElement = document.getElementById('cart-count');
 const cartTotalPrice = document.getElementById('cart-total-price');
+
+// Управление модальным окном авторизации
+const authOpenBtn = document.getElementById('auth-open');
+const authCloseBtn = document.getElementById('auth-close');
+const authOverlay = document.getElementById('auth-overlay');
+const authForm = document.getElementById('auth-form');
+
+function toggleAuth() { document.body.classList.toggle('auth-active'); }
+authOpenBtn.addEventListener('click', toggleAuth);
+authCloseBtn.addEventListener('click', toggleAuth);
+authOverlay.addEventListener('click', toggleAuth);
+
+authForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    alert('Успешная авторизация!');
+    toggleAuth();
+});
+
+// Управление шторкой корзины
 const cartOpenBtn = document.getElementById('cart-open');
 const cartCloseBtn = document.getElementById('cart-close');
 const cartOverlay = document.getElementById('cart-overlay');
 
-// Логика шторки корзины (теперь работает независимо от базы данных)
-function toggleCart() {
-    document.body.classList.toggle('cart-active');
-}
+function toggleCart() { document.body.classList.toggle('cart-active'); }
 cartOpenBtn.addEventListener('click', toggleCart);
 cartCloseBtn.addEventListener('click', toggleCart);
 cartOverlay.addEventListener('click', toggleCart);
 
-// Глобальный перехватчик кликов (решает проблему с блокировкой кнопок)
+// Глобальный перехватчик кликов (решает проблемы с динамическими кнопками)
 document.addEventListener('click', (event) => {
-    // Если кликнули на кнопку "В корзину"
     if (event.target.classList.contains('btn-add')) {
-        const productId = event.target.getAttribute('data-id');
-        addToCart(productId);
+        addToCart(event.target.getAttribute('data-id'));
     }
-    // Если кликнули на удаление из корзины
     if (event.target.classList.contains('cart-item-remove')) {
-        const index = event.target.getAttribute('data-index');
-        removeFromCart(index);
+        removeFromCart(event.target.getAttribute('data-index'));
     }
-    // Если кликнули "Оформить заказ"
     if (event.target.classList.contains('checkout-btn')) {
-        alert('Переход к оплате!');
+        alert('Переход к оформлению заказа!');
     }
 });
 
-// Загрузка товаров
+// Загрузка товаров из БД
 async function loadProducts() {
     if (!db) {
         catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">База данных не подключена.</p>';
         return;
     }
 
-    catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Загрузка меню из базы данных...</p>';
+    catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Загрузка меню...</p>';
     
     try {
         const querySnapshot = await getDocs(collection(db, "products"));
         products = [];
-        
         querySnapshot.forEach((doc) => {
             products.push({ id: doc.id, ...doc.data() });
         });
 
         if (products.length === 0) {
-            catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Каталог пуст. Добавьте товары в Firebase Firestore.</p>';
+            catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Каталог пуст.</p>';
             return;
         }
 
         renderCatalog();
     } catch (error) {
         console.error("Ошибка загрузки:", error);
-        catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: red;">Ошибка доступа к базе данных. Проверьте правила (Rules) в Firestore.</p>';
+        catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: red;">Ошибка доступа к БД.</p>';
     }
 }
 
@@ -113,10 +122,8 @@ function addToCart(productId) {
     if (!product) return;
     
     cart.push(product);
-    
-    cartOpenBtn.style.transform = 'scale(1.1)';
+    cartOpenBtn.style.transform = 'scale(1.05)';
     setTimeout(() => cartOpenBtn.style.transform = 'scale(1)', 200);
-
     updateCartUI();
 }
 
