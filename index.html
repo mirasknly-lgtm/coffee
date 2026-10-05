@@ -10,48 +10,18 @@
 <body>
     <!-- Навигация -->
     <nav class="navbar">
-        <div class="logo">Blend & Brew.</div>
-        <div class="nav-actions">
-            <button class="auth-btn" id="auth-open">Войти</button>
-            <button class="cart-btn" id="cart-open">
-                🛒 Корзина <span class="cart-badge" id="cart-count">0</span>
-            </button>
+        <div class="nav-container">
+            <div class="logo">Blend & Brew.</div>
+            <div class="nav-actions">
+                <button class="auth-btn" id="btn-login">Войти</button>
+                <button class="cart-btn" id="btn-cart">
+                    🛒 Корзина <span class="cart-badge" id="cart-count">0</span>
+                </button>
+            </div>
         </div>
     </nav>
 
-    <!-- Затемнение фона -->
-    <div class="overlay" id="page-overlay"></div>
-
-    <!-- Модальное окно авторизации -->
-    <div class="modal auth-modal" id="auth-modal">
-        <button class="close-btn" id="auth-close">&times;</button>
-        <h2>Вход в аккаунт</h2>
-        <form id="auth-form" class="auth-form">
-            <input type="email" placeholder="Email" required class="form-input">
-            <input type="password" placeholder="Пароль" required class="form-input">
-            <button type="submit" class="btn-primary">Войти</button>
-        </form>
-    </div>
-
-    <!-- Боковая панель корзины -->
-    <div class="cart-sidebar" id="cart-sidebar">
-        <div class="cart-header">
-            <h2>Ваш заказ</h2>
-            <button class="close-btn" id="cart-close">&times;</button>
-        </div>
-        <div class="cart-items" id="cart-items">
-            <!-- Товары корзины -->
-        </div>
-        <div class="cart-footer">
-            <div class="cart-total">
-                <span>Итого:</span>
-                <strong id="cart-total-price">0 ₸</strong>
-            </div>
-            <button class="btn-primary checkout-btn" id="checkout-btn">Оформить заказ</button>
-        </div>
-    </div>
-
-    <!-- Главный экран -->
+    <!-- Главный баннер -->
     <header class="hero">
         <div class="hero-content">
             <h1>Идеальный кофе и десерты</h1>
@@ -60,49 +30,45 @@
     </header>
 
     <!-- Каталог -->
-    <main class="container">
+    <main class="main-container">
         <h2 class="section-title">Наше меню</h2>
-        <div class="catalog-grid" id="catalog">
-            <!-- Сюда подгружаются товары -->
+        <div class="catalog-grid" id="catalog-container">
+            <!-- Сюда JS загрузит товары -->
         </div>
     </main>
-</body>
-</html>            <h2>Ваш заказ</h2>
-            <button class="close-btn" id="cart-close">×</button>
+
+    <!-- Затемнение фона (одно для всех окон) -->
+    <div class="overlay" id="global-overlay"></div>
+
+    <!-- Модальное окно авторизации -->
+    <div class="modal-auth" id="modal-auth">
+        <div class="modal-header">
+            <h2>Вход в аккаунт</h2>
+            <button class="btn-close" id="close-auth">×</button>
         </div>
-        <div class="cart-items" id="cart-items">
-            <p class="empty-cart">Ваша корзина пуста</p>
+        <form class="auth-form" id="auth-form">
+            <input type="email" placeholder="Email" required class="input-field">
+            <input type="password" placeholder="Пароль" required class="input-field">
+            <button type="submit" class="btn-primary">Войти</button>
+        </form>
+    </div>
+
+    <!-- Боковая панель корзины -->
+    <aside class="cart-sidebar" id="cart-sidebar">
+        <div class="cart-header">
+            <h2>Ваш заказ</h2>
+            <button class="btn-close" id="close-cart">×</button>
+        </div>
+        <div class="cart-body" id="cart-items">
+            <p class="empty-msg">Ваша корзина пуста</p>
         </div>
         <div class="cart-footer">
-            <div class="cart-total">
+            <div class="cart-total-row">
                 <span>Итого:</span>
                 <strong id="cart-total-price">0 ₸</strong>
             </div>
-            <button class="btn-primary checkout-btn">Оформить заказ</button>
+            <button class="btn-primary btn-full" id="btn-checkout">Оформить заказ</button>
         </div>
-    </div>
-
-    <header class="hero">
-        <div class="hero-content">
-            <h1>Идеальный кофе и десерты</h1>
-            <p>Свежая обжарка и выпечка с доставкой до вашей двери</p>
-        </div>
-    </header>
-
-    <main class="container">
-        <h2 class="section-title">Наше меню</h2>
-        <div class="catalog-grid" id="catalog"></div>
-    </main>
-</body>
-</html>        <div class="hero-content">
-            <h1>Идеальный кофе и десерты</h1>
-            <p>Свежая обжарка и выпечка с доставкой до вашей двери</p>
-        </div>
-    </header>
-
-    <main class="container">
-        <h2 class="section-title">Наше меню</h2>
-        <div class="catalog-grid" id="catalog"></div>
-    </main>
+    </aside>
 </body>
 </html>
