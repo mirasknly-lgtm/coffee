@@ -1,7 +1,13 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
 import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
-// Инициализация базы данных
+// Резервный массив товаров (если БД пуста или ключи не работают)
+const fallbackProducts = [
+    { id: "1", name: "Эфиопия Иргачеффе", desc: "Светлая обжарка. Ноты: бергамот, персик.", price: 5500, img: "https://images.unsplash.com/photo-1559525839-b184a4d698c7?auto=format&fit=crop&w=600&q=80" },
+    { id: "2", name: "Фирменный Бленд", desc: "Средняя обжарка. Идеально для эспрессо.", price: 4000, img: "https://images.unsplash.com/photo-1587734195503-904fca47e0e9?auto=format&fit=crop&w=600&q=80" },
+    { id: "3", name: "Миндальный Круассан", desc: "Свежая выпечка с миндальным кремом.", price: 1200, img: "https://images.unsplash.com/photo-1549903072-7e6e0d6594b4?auto=format&fit=crop&w=600&q=80" }
+];
+
 let db;
 try {
     const firebaseConfig = {
@@ -15,149 +21,83 @@ try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
 } catch (error) {
-    console.error("Ошибка подключения к Firebase:", error);
+    console.error("Firebase init error:", error);
 }
 
 let products = [];
 let cart = [];
 
+// DOM Элементы
+const overlay = document.getElementById('page-overlay');
+const authModal = document.getElementById('auth-modal');
+const cartSidebar = document.getElementById('cart-sidebar');
 const catalogContainer = document.getElementById('catalog');
 const cartItemsContainer = document.getElementById('cart-items');
-const cartCountElement = document.getElementById('cart-count');
+const cartCount = document.getElementById('cart-count');
 const cartTotalPrice = document.getElementById('cart-total-price');
 
-// Управление модальным окном авторизации
-const authOpenBtn = document.getElementById('auth-open');
-const authCloseBtn = document.getElementById('auth-close');
-const authOverlay = document.getElementById('auth-overlay');
-const authForm = document.getElementById('auth-form');
+// Управление интерфейсом
+function toggleAuth() {
+    authModal.classList.toggle('active');
+    overlay.classList.toggle('active');
+    cartSidebar.classList.remove('active'); // Закрываем корзину, если открыта
+}
 
-function toggleAuth() { document.body.classList.toggle('auth-active'); }
-authOpenBtn.addEventListener('click', toggleAuth);
-authCloseBtn.addEventListener('click', toggleAuth);
-authOverlay.addEventListener('click', toggleAuth);
+function toggleCart() {
+    cartSidebar.classList.toggle('active');
+    overlay.classList.toggle('active');
+    authModal.classList.remove('active'); // Закрываем авторизацию, если открыта
+}
 
-authForm.addEventListener('submit', (e) => {
+function closeAll() {
+    authModal.classList.remove('active');
+    cartSidebar.classList.remove('active');
+    overlay.classList.remove('active');
+}
+
+// Привязка событий (Открытие/Закрытие окон)
+document.getElementById('auth-open').addEventListener('click', toggleAuth);
+document.getElementById('auth-close').addEventListener('click', closeAll);
+document.getElementById('cart-open').addEventListener('click', toggleCart);
+document.getElementById('cart-close').addEventListener('click', closeAll);
+overlay.addEventListener('click', closeAll);
+
+document.getElementById('auth-form').addEventListener('submit', (e) => {
     e.preventDefault();
     alert('Успешная авторизация!');
-    toggleAuth();
+    closeAll();
 });
 
-// Управление шторкой корзины
-const cartOpenBtn = document.getElementById('cart-open');
-const cartCloseBtn = document.getElementById('cart-close');
-const cartOverlay = document.getElementById('cart-overlay');
-
-function toggleCart() { document.body.classList.toggle('cart-active'); }
-cartOpenBtn.addEventListener('click', toggleCart);
-cartCloseBtn.addEventListener('click', toggleCart);
-cartOverlay.addEventListener('click', toggleCart);
-
-// Глобальный перехватчик кликов (решает проблемы с динамическими кнопками)
-document.addEventListener('click', (event) => {
-    if (event.target.classList.contains('btn-add')) {
-        addToCart(event.target.getAttribute('data-id'));
+// Глобальный перехватчик кликов для динамических кнопок
+document.addEventListener('click', (e) => {
+    if (e.target.closest('.btn-add')) {
+        addToCart(e.target.closest('.btn-add').dataset.id);
     }
-    if (event.target.classList.contains('cart-item-remove')) {
-        removeFromCart(event.target.getAttribute('data-index'));
+    if (e.target.closest('.cart-item-remove')) {
+        removeFromCart(Number(e.target.closest('.cart-item-remove').dataset.index));
     }
-    if (event.target.classList.contains('checkout-btn')) {
-        alert('Переход к оформлению заказа!');
+    if (e.target.id === 'checkout-btn') {
+        alert(cart.length > 0 ? 'Переход к оплате!' : 'Корзина пуста');
     }
 });
 
-// Загрузка товаров из БД
+// Загрузка и рендер
 async function loadProducts() {
-    if (!db) {
-        catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">База данных не подключена.</p>';
-        return;
-    }
-
-    catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Загрузка меню...</p>';
-    
     try {
-        const querySnapshot = await getDocs(collection(db, "products"));
-        products = [];
-        querySnapshot.forEach((doc) => {
-            products.push({ id: doc.id, ...doc.data() });
-        });
-
-        if (products.length === 0) {
-            catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Каталог пуст.</p>';
-            return;
+        if (db) {
+            const querySnapshot = await getDocs(collection(db, "products"));
+            querySnapshot.forEach((doc) => { products.push({ id: doc.id, ...doc.data() }); });
         }
-
-        renderCatalog();
     } catch (error) {
-        console.error("Ошибка загрузки:", error);
-        catalogContainer.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; color: red;">Ошибка доступа к БД.</p>';
+        console.error("Ошибка Firebase:", error);
     }
+
+    // Если база пуста или недоступна, используем резервный каталог
+    if (products.length === 0) products = fallbackProducts;
+    renderCatalog();
 }
 
-// Отрисовка товаров
 function renderCatalog() {
-    catalogContainer.innerHTML = '';
-    products.forEach(product => {
-        const card = document.createElement('div');
-        card.className = 'product-card';
-        card.innerHTML = `
-            <div class="product-img-wrap">
-                <img src="${product.img || ''}" alt="${product.name}" class="product-img">
-            </div>
-            <div class="product-info">
-                <h3 class="product-title">${product.name}</h3>
-                <p class="product-desc">${product.desc}</p>
-                <div class="product-bottom">
-                    <span class="product-price">${new Intl.NumberFormat('ru-RU').format(product.price)} ₸</span>
-                    <button class="btn-add" data-id="${product.id}">В корзину</button>
-                </div>
-            </div>
-        `;
-        catalogContainer.appendChild(card);
-    });
-}
-
-function addToCart(productId) {
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
-    
-    cart.push(product);
-    cartOpenBtn.style.transform = 'scale(1.05)';
-    setTimeout(() => cartOpenBtn.style.transform = 'scale(1)', 200);
-    updateCartUI();
-}
-
-function removeFromCart(index) {
-    cart.splice(index, 1);
-    updateCartUI();
-}
-
-function updateCartUI() {
-    cartCountElement.textContent = cart.length;
-    cartItemsContainer.innerHTML = '';
-    
-    if (cart.length === 0) {
-        cartItemsContainer.innerHTML = '<p class="empty-cart">Ваша корзина пуста</p>';
-        cartTotalPrice.textContent = '0 ₸';
-        return;
-    }
-
-    let total = 0;
-    cart.forEach((item, index) => {
-        total += Number(item.price);
-        const cartItem = document.createElement('div');
-        cartItem.className = 'cart-item';
-        cartItem.innerHTML = `
-            <div class="cart-item-info">
-                <h4>${item.name}</h4>
-                <p>${new Intl.NumberFormat('ru-RU').format(item.price)} ₸</p>
-            </div>
-            <button class="cart-item-remove" data-index="${index}">✕</button>
-        `;
-        cartItemsContainer.appendChild(cartItem);
-    });
-
-    cartTotalPrice.textContent = new Intl.NumberFormat('ru-RU').format(total) + ' ₸';
-}
-
-loadProducts();
+    catalogContainer.innerHTML = products.map(product => `
+        <div class="product-card">
+            <img src="${product.img}" alt="${product.
