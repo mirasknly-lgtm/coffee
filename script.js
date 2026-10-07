@@ -1,9 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
-// --- ШАГ 1: ЕДИНАЯ КОНФИГУРАЦИЯ FIREBASE ---
+// Единая конфигурация Firebase (как в админке)
 const firebaseConfig = {
-    apiKey: "ТВОЙ_API_KEY", // Убедитесь, что вставили сюда ключ, если он требуется
+    apiKey: "ТВОЙ_API_KEY",
     authDomain: "craft-coffee-app.firebaseapp.com",
     projectId: "craft-coffee-app",
     storageBucket: "craft-coffee-app.firebasestorage.app",
@@ -16,25 +16,203 @@ try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
 } catch (error) {
-    console.error("Ошибка инициализации Firebase:", error);
+    console.error("Firebase init error:", error);
 }
 
-let products = [];
-let cart = [];
-
-// Резервный массив (адаптирован под новые поля image и description)
 const fallbackProducts = [
     { id: "1", name: "Эфиопия Иргачеффе", description: "Светлая обжарка. Ноты: бергамот, персик.", price: 5500, image: "https://images.unsplash.com/photo-1559525839-b184a4d698c7?auto=format&fit=crop&w=600&q=80" },
     { id: "2", name: "Фирменный Бленд", description: "Средняя обжарка. Идеально для эспрессо.", price: 4000, image: "https://images.unsplash.com/photo-1587734195503-904fca47e0e9?auto=format&fit=crop&w=600&q=80" }
 ];
 
-// --- ДОСТУП К DOM ЭЛЕМЕНТАМ (ID синхронизированы с index-2.html) ---
+let products = [];
+let cart = [];
+
+// DOM Элементы
 const overlay = document.getElementById('global-overlay');
 const authModal = document.getElementById('modal-auth');
 const cartSidebar = document.getElementById('cart-sidebar');
 const catalogContainer = document.getElementById('catalog-container');
 const cartItemsContainer = document.getElementById('cart-items');
 const cartCount = document.getElementById('cart-count');
+const cartTotalPrice = document.getElementById('cart-total-price');
+
+// Управление окнами
+function closeAll() {
+    authModal.classList.remove('active');
+    cartSidebar.classList.remove('active');
+    overlay.classList.remove('active');
+}
+
+function toggleAuth() {
+    closeAll();
+    authModal.classList.add('active');
+    overlay.classList.add('active');
+}
+
+function toggleCart() {
+    closeAll();
+    cartSidebar.classList.add('active');
+    overlay.classList.add('active');
+}
+
+document.getElementById('btn-login').addEventListener('click', toggleAuth);
+document.getElementById('close-auth').addEventListener('click', closeAll);
+document.getElementById('btn-cart').addEventListener('click', toggleCart);
+document.getElementById('close-cart').addEventListener('click', closeAll);
+overlay.addEventListener('click', closeAll);
+
+document.getElementById('auth-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    alert('Успешная авторизация!');
+    closeAll();
+});
+
+// Глобальный слушатель для динамических элементов и глазика пароля
+document.addEventListener('click', (e) => {
+    // Добавление в корзину
+    if (e.target.closest('.btn-add')) {
+        addToCart(e.target.closest('.btn-add').dataset.id);
+    }
+    // Удаление из корзины
+    if (e.target.closest('.btn-remove')) {
+        removeFromCart(Number(e.target.closest('.btn-remove').dataset.index));
+    }
+    // Оформление заказа
+    if (e.target.id === 'btn-checkout') {
+        checkout();
+    }
+    // Кнопка показа пароля
+    if (e.target.closest('.toggle-password')) {
+        const btn = e.target.closest('.toggle-password');
+        const input = document.getElementById(btn.dataset.target);
+        if (input.type === 'password') {
+            input.type = 'text';
+            btn.textContent = '🔒';
+        } else {
+            input.type = 'password';
+            btn.textContent = '👁️';
+        }
+    }
+});
+
+// Загрузка каталога
+async function loadProducts() {
+    try {
+        if (db) {
+            const querySnapshot = await getDocs(collection(db, "products"));
+            querySnapshot.forEach((doc) => { products.push({ id: doc.id, ...doc.data() }); });
+        }
+    } catch (error) {
+        console.error("Ошибка Firebase:", error);
+    }
+
+    if (products.length === 0) products = fallbackProducts;
+    renderCatalog();
+}
+
+// Рендер каталога (с исправленными полями и синтаксисом)
+function renderCatalog() {
+    catalogContainer.innerHTML = products.map(product => `
+        <div class="product-card">
+            <img src="${product.image}" alt="${product.name}" class="product-img">
+            <div class="product-info">
+                <h3>${product.name}</h3>
+                <p>${product.description}</p>
+                <div class="card-bottom">
+                    <span class="price">${product.price} ₸</span>
+                    <button class="btn-primary btn-add" data-id="${product.id}">В корзину</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Логика корзины
+function addToCart(productId) {
+    const product = products.find(p => p.id === productId);
+    if (product) {
+        cart.push(product);
+        renderCart();
+        
+        const cartBtn = document.getElementById('btn-cart');
+        cartBtn.style.transform = 'scale(1.1)';
+        setTimeout(() => cartBtn.style.transform = 'scale(1)', 200);
+    }
+}
+
+function removeFromCart(index) {
+    cart.splice(index, 1);
+    renderCart();
+}
+
+function renderCart() {
+    cartCount.textContent = cart.length;
+    cartItemsContainer.innerHTML = '';
+
+    if (cart.length === 0) {
+        cartItemsContainer.innerHTML = '<p class="empty-msg">Ваша корзина пуста</p>';
+        cartTotalPrice.textContent = '0 ₸';
+        return;
+    }
+
+    let total = 0;
+    cart.forEach((item, index) => {
+        total += Number(item.price);
+        const itemEl = document.createElement('div');
+        itemEl.className = 'cart-item';
+        itemEl.innerHTML = `
+            <div class="item-info">
+                <h4>${item.name}</h4>
+                <p>${item.price} ₸</p>
+            </div>
+            <button class="btn-remove" data-index="${index}">✕</button>
+        `;
+        cartItemsContainer.appendChild(itemEl);
+    });
+
+    cartTotalPrice.textContent = `${total} ₸`;
+}
+
+// Оформление заказа (Checkout)
+async function checkout() {
+    if (cart.length === 0) {
+        alert("Корзина пуста!");
+        return;
+    }
+
+    try {
+        const itemsMap = {};
+        let total = 0;
+
+        cart.forEach(item => {
+            if (!itemsMap[item.id]) {
+                itemsMap[item.id] = { product: { name: item.name }, quantity: 0 };
+            }
+            itemsMap[item.id].quantity += 1;
+            total += Number(item.price);
+        });
+
+        const order = {
+            items: Object.values(itemsMap),
+            status: 'new',
+            createdAt: new Date(),
+            total: total,
+            userEmail: 'Гость'
+        };
+
+        await addDoc(collection(db, 'orders'), order);
+        alert("Заказ успешно оформлен!");
+        cart = [];
+        renderCart();
+        closeAll();
+    } catch (error) {
+        console.error("Ошибка при оформлении заказа", error);
+        alert("Произошла ошибка. Попробуйте позже.");
+    }
+}
+
+// Инициализация
+loadProducts();const cartCount = document.getElementById('cart-count');
 const cartTotalPrice = document.getElementById('cart-total-price');
 
 // --- УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ ---
